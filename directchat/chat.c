@@ -1,20 +1,20 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio.h> //what is stdio?
+#include <stdlib.h> //i don't see any books here
 #include <sys/socket.h>
-#include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netdb.h>
+#include <string.h> //never used this one before
+#include <sys/types.h> //this one either
+#include <unistd.h> //pthreads support
+#include <arpa/inet.h> //struct in_addr, net/host conversion hton
+#include <pthread.h> //obvs
+#include <assert.h> //assert error returns
+#include <netdb.h> //ai_flags
 
 #define NUM_THREADS 3
-#define BUFSIZE 32
+#define BUFSIZE 128
 
 //	SYNTAX
 //	./chat remote_ip connect_port listen_port
-//	ex
+//   e.g.
 //	./chat 127.0.0.1 55 89
 
 
