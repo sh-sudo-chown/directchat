@@ -58,7 +58,6 @@ void	*server(void* CliAddr){
 int main(int argc, char *argv[]) {
 	struct addrinfo hints, *res;
 	struct sockaddr_in ServAddr, CliAddr;
-	struct thread_info *tinfo;
 	int errcode;	//getaddrinfo
 	int result_code, thread_args[NUM_THREADS]; //pthread.h
 	pthread_t *threads[NUM_THREADS];
