@@ -10,11 +10,11 @@
 #include <netdb.h>
 
 #define NUM_THREADS 3
-#define BUFSIZE 32
+#define BUFSIZE 128
 
-//	SYNTAX
+//	SYNTAX !!! - while testing AI_PASSIVE flags are currently in place of IP address at argv[1]
 //	./chat remote_ip connect_port listen_port
-//	ex
+//   e.g.
 //	./chat 127.0.0.1 55 89
 
 
@@ -59,10 +59,10 @@ int main(int argc, char *argv[]) {
 	struct addrinfo hints, *res;
 	struct sockaddr_in ServAddr, CliAddr;
 	int errcode;	//getaddrinfo
-	int result_code, thread_args[NUM_THREADS]; //from pthread.h
+	int result_code, thread_args[NUM_THREADS]; //pthread.h
 	pthread_t *threads[NUM_THREADS];
 
-	//lookup host server ports
+	//test host lookup
 	memset(&hints, '\0', sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
@@ -78,13 +78,13 @@ int main(int argc, char *argv[]) {
 	ServAddr.sin_family = AF_INET;
 	ServAddr.sin_addr.s_addr = AI_PASSIVE;	//AI_PASSIVE flag sets host to local
 	ServAddr.sin_port = htons(*argv[2]);
-		//add test for ServAddr
+		//add test function for ServAddr
 
 	//configure connection to client
 	memset(&CliAddr, '\0', sizeof(CliAddr));
 	ServAddr.sin_family = AF_INET;
 	ServAddr.sin_addr.s_addr = AI_PASSIVE;	//AI_PASSIVE flag sets host to local
-	ServAddr.sin_port = htons(*argv[1]);
+	ServAddr.sin_port = htons(*argv[2]);
 	
 	//configure threads for client then server socket
 	result_code = pthread_create(threads[0], NULL, server, (void *) &ServAddr);
