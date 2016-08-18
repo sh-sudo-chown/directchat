@@ -61,6 +61,7 @@ int main(int argc, char *argv[]) {
 	int errcode;	//getaddrinfo
 	int result_code, thread_args[NUM_THREADS]; //pthread.h
 	pthread_t *threads[NUM_THREADS];
+	pthread_attr_t tattr;
 
 	//test host lookup
 	memset(&hints, '\0', sizeof(hints));
@@ -87,9 +88,9 @@ int main(int argc, char *argv[]) {
 	ServAddr.sin_port = htons(*argv[2]);
 	
 	//configure threads for client then server socket
-	result_code = pthread_create(threads[0], NULL, server, (void *) &ServAddr);
+	result_code = pthread_create(threads[0], &tattr, server, (void *) &ServAddr);
 	assert(0 == result_code);
 	
-	result_code = pthread_create(threads[1], NULL, client, (void *) &CliAddr);
+	result_code = pthread_create(threads[1], &tattr, client, (void *) &CliAddr);
 	assert(0 == result_code);
 }
