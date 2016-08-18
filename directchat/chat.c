@@ -18,7 +18,7 @@
 //	./chat 127.0.0.1 55 89
 
 
-void 	*client(void* ServAddr){
+void 	*client(void *ServAddr){
 	int sockfd = socket(AF_INET,SOCK_STREAM,0);
 	char sendBuffer[BUFSIZE];
 	while(sendBuffer != "quit"){
@@ -34,7 +34,7 @@ void 	*client(void* ServAddr){
 	exit(0);
 }
 
-void	*server(void* CliAddr){
+void	*server(void *CliAddr){
 	int sockfd = socket(AF_INET,SOCK_STREAM,0);
 	char rcvBuffer[BUFSIZE];
 	ssize_t BytesRecv;
@@ -58,7 +58,6 @@ void	*server(void* CliAddr){
 int main(int argc, char *argv[]) {
 	struct addrinfo hints, *res;
 	struct sockaddr_in ServAddr, CliAddr;
-	struct thread_info *tinfo;
 	int errcode;	//getaddrinfo
 	int result_code, thread_args[NUM_THREADS]; //from pthread.h
 	pthread_t *threads[NUM_THREADS];
@@ -88,9 +87,9 @@ int main(int argc, char *argv[]) {
 	ServAddr.sin_port = htons(*argv[1]);
 	
 	//configure threads for client then server socket
-	result_code = pthread_create(&threads[0], NULL, server, (void *) &ServAddr);
+	result_code = pthread_create(threads[0], NULL, server, (void *) &ServAddr);
 	assert(0 == result_code);
 	
-	result_code = pthread_create(&threads[1], NULL, client, (void *) &CliAddr);
+	result_code = pthread_create(threads[1], NULL, client, (void *) &CliAddr);
 	assert(0 == result_code);
 }
