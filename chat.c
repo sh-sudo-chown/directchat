@@ -18,44 +18,52 @@
 //	./chat '55' '89' '127.0.0.1'
 
 
-void 	*client(void * ServAddr){
+void 	*client(void * ConnAddr){
 	printf("test1");
 //	pthread_detach(pthread_self());
 //	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	struct sockaddr_in *incomming = (struct sockaddr_in *)ServAddr;
+	struct sockaddr_in *incomming = (struct sockaddr_in *)ConnAddr;
 	printf("%s",incomming);
-	int sockfd = socket(AF_INET,SOCK_STREAM,0);
+	int sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_IP);
 	char sendBuffer[BUFSIZE] = "";
-	connect(sockfd, (struct sockaddr *) &incomming, sizeof(incomming));
-	printf("server");
-	while(strncmp(sendBuffer,"quit\n",5)!=0);{
-		scanf(" %s", sendBuffer);
-		send(sockfd, sendBuffer, BUFSIZE, '\0');
-		printf("-%s", sendBuffer);
+	while(1){
+		if(connect(sockfd, (struct sockaddr *) &incomming, sizeof(incomming))==0){
+			printf("connected");
+			while(strncmp(sendBuffer,"quit\n",5)!=0);{
+				scanf(" %s", sendBuffer);
+				send(sockfd, sendBuffer, BUFSIZE, '\0');
+				printf("-%s", sendBuffer);
+			}
+
+		}else if(connect(sockfd, (struct sockaddr *) &incomming, sizeof(incomming))<0){
+			perror("ERROR: connection failed");
+		}
 	}
 	close(sockfd);
 	exit(0);
 }
 
-void	*server(void * CliAddr){
+void	*server(void * ListAddr){
 	printf("test2");
 //	pthread_detach(pthread_self());
 //	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	struct sockaddr_in *incomming = (struct sockaddr_in *)CliAddr;
-	printf("%s",incomming);
-	int sockfd = socket(AF_INET,SOCK_STREAM,0);
+	struct sockaddr_in *incomming = (struct sockaddr_in *)ListAddr;
+	int sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_IP);
 	char recvBuffer[BUFSIZE] = "";
 	ssize_t BytesRecv;
 	int connfd;
 	socklen_t CliLen = sizeof(incomming);
-	bind(sockfd, (struct sockaddr *) &incomming, sizeof(*incomming));
+	if(bind(sockfd, (struct sockaddr *) &incomming, sizeof(*incomming))<0){
+		perror("ERROR: fail on bind");
+		exit(0);
+	}
 	listen(sockfd, 7);
-	if((connfd=accept(sockfd, (struct sockaddr *) &incomming, &CliLen)) != 0 ){
-		printf("server");
+	if((connfd=accept(sockfd, (struct sockaddr *) &incomming, &CliLen))>0 ){
+		printf("Connection accepted");
 		while(strncmp(recvBuffer,"quit\n",5)!=0);{
 			BytesRecv = recv(sockfd, recvBuffer, BUFSIZE, '\0');
-			if (recvBuffer > 0){
-				printf("%s: ", recvBuffer);
+			if (recvBuffer >= 0 && recvBuffer != NULL){
+				printf(" %s: ", recvBuffer);
 			}
 		}
 	}
@@ -66,7 +74,7 @@ void	*server(void * CliAddr){
 
 int main(int argc, char *argv[]) {
 	struct addrinfo hints, *res;
-	struct sockaddr_in ServAddr, CliAddr;
+	struct sockaddr_in ConnAddr, ListAddr;
 //	int errcode;	//getaddrinfo
 	int result_code;//, thread_args[NUM_THREADS]; //pthread.h
 //	pthread_t *threads[NUM_THREADS];
@@ -85,25 +93,24 @@ int main(int argc, char *argv[]) {
 	}
 	freeaddrinfo(&hints);
 */
-	//configure connection socket to server
-	memset(&ServAddr, '\0', sizeof(ServAddr));
-	ServAddr.sin_family = AF_INET;
-	ServAddr.sin_addr.s_addr = AI_PASSIVE;	//AI_PASSIVE flag sets host to local, replace with htons(*argv[3]) after testing
-	ServAddr.sin_port = htons(*argv[2]);
+	memset(&ConnAddr, '\0', sizeof(ConnAddr));
+	ConnAddr.sin_family = PF_INET;
+	ConnAddr.sin_addr.s_addr = htons(*argv[3]);	//AI_PASSIVE flag sets host to local
+	ConnAddr.sin_port = atoi(argv[2]);
 
-	//configure listener socket for client
-	memset(&CliAddr, '\0', sizeof(CliAddr));
-	CliAddr.sin_family = AF_INET;
-	CliAddr.sin_addr.s_addr = AI_PASSIVE;	//AI_PASSIVE flag sets host to local
-	CliAddr.sin_port = htons(*argv[1]);
+	//configure listen socket
+	memset(&ListAddr, '\0', sizeof(ListAddr));
+	ListAddr.sin_family = PF_INET;
+	ListAddr.sin_addr.s_addr = htons(INADDR_ANY);	//AI_PASSIVE flag sets host to local
+	ListAddr.sin_port = atoi(argv[1]);
 
 	//configure threads for client then server socket
 //	result_code = 
-	pthread_create(&conn_t, NULL, client, (void *) &ServAddr);
+	pthread_create(&conn_t, NULL, client, (void *) &ConnAddr);
 //	assert(0 == result_code);
 //	printf("%s",result_code);
 //	result_code = 
-	pthread_create(&listen_t, NULL, server, (void *) &CliAddr);
+	pthread_create(&listen_t, NULL, server, (void *) &ConnAddr);
 //	assert(0 == result_code);
 	pthread_attr_destroy(&tattr);
 //	printf("%s",result_code);
