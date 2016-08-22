@@ -8,70 +8,85 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
+
+//	SYNTAX !!! - while testing AI_PASSIVE flags are currently in place of IP address at argv[1]
+//	./chat port ip
+//   e.g.
+//	./chat 55 127.0.0.1
+
 
 #define BUFSIZE 4096
 pthread_mutex_t mutex;
+char sendBuffer[BUFSIZE], recvBuffer[BUFSIZE];
 
-//	SYNTAX !!! - while testing AI_PASSIVE flags are currently in place of IP address at argv[1]
-//	./chat connect_port listen_port remote_ip
-//   e.g.
-//	./chat 55 89 "127.0.0.1"
+int	sock_option_parser(int socket){
+	if(setsockopt(socket,SOL_SOCKET,SO_REUSEPORT,&(int){ 1 }, sizeof(int))<0)
+		perror("setsockopt(SO_REUSEPORT) failed");
+	if(setsockopt(socket,SOL_SOCKET,SO_RCVBUF, &(int){ 4096 }, sizeof(int))<0)
+		perror("setsockopt(SO_RCVBUF) failed");
+	if(setsockopt(socket,SOL_SOCKET,SO_RCVLOWAT,&(int){ 1 }, sizeof(int))<0)
+		perror("setsockopt(SO_RCVLOWAT) failed");
+	if(setsockopt(socket,SOL_SOCKET,SO_SNDBUF, &(int){ 4096 }, sizeof(int))<0)
+		perror("setsockopt(SO_SNDBUF) failed");
+	if(setsockopt(socket,SOL_TCP,TCP_MAXSEG, &(int){ 4096 }, sizeof(int))<0)
+		perror("setsockopt(MAX_SEG) failed");
+	if(setsockopt(socket,SOL_TCP,TCP_NODELAY, &(int){ 1 }, sizeof(int))<0)
+		perror("setsockopt(TCP_NODELAY) failed");
+	return socket;
+}
 
 
-void 	*client(void * argv){
-	puts("test1");
+
+void 	*client(void *arg){
 	pthread_mutex_lock(&mutex);
-	char *args = argv; //create local array of argvs
+	char **args = (char**)arg; //create local array of argvs
 	pthread_mutex_unlock(&mutex);
-//	pthread_detach(pthread_self());
-//	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	struct sockaddr_in ConnAddr;
-	int attempts = 1;
+	int attempts;
 	int sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_IP);
+	sock_option_parser(sockfd);
 
 	//configure listen socket
 	memset(&ConnAddr, '\0', sizeof(ConnAddr));
 	ConnAddr.sin_family = PF_INET;
-	ConnAddr.sin_addr.s_addr = htons(args[3]);
-	ConnAddr.sin_port = atoi(&args[2]);
-
-	char sendBuffer[BUFSIZE] = "";
+	ConnAddr.sin_addr.s_addr = inet_addr(args[2]);
+	ConnAddr.sin_port = atoi(args[1]);
 
 	//socket functions
-	CONN_loop: attempts = attempts + 1;
-	if(connect(sockfd, (struct sockaddr *) &ConnAddr, sizeof(ConnAddr))==0){
-		puts("connected");
-		while(strncmp(sendBuffer,"quit\n",5)!=0);{
-			scanf(" %s", sendBuffer);
-			send(sockfd, sendBuffer, BUFSIZE, '\0');
-			printf("-%s", sendBuffer);
-		}
-	}else if(connect(sockfd, (struct sockaddr *) &ConnAddr, sizeof(ConnAddr))<0){
+	CONN_loop: attempts++;
+	if(connect(sockfd, (struct sockaddr *) &ConnAddr, sizeof(ConnAddr))<0){
 		printf("connection attempt %d failed, retrying\n", attempts);
 		sleep(3);
-		goto CONN_loop;	}
+		goto CONN_loop;
+	}
+	printf("connected");
+	while(strncmp(sendBuffer,"quit",4)!=0){
+		scanf("%s ", sendBuffer);
+		pthread_mutex_lock(&mutex);
+		send(sockfd, sendBuffer, strlen(sendBuffer), 0);
+		pthread_mutex_unlock(&mutex);
+	}
 	close(sockfd);
+	printf("connect thread closed");
 	pthread_exit(0);
 }
 
-void	*server(void * argv){
-	printf("test2");
+void	*server(void *arg){
 	pthread_mutex_lock(&mutex);
-	char *args = argv; //create local array of argvs
+	char **args = (char**)arg; //create local array of argvs
 	pthread_mutex_unlock(&mutex);
 
-//	pthread_detach(pthread_self());
-//	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 	struct sockaddr_in ListAddr;
 
 	//configure listen socket
 	memset(&ListAddr, '\0', sizeof(ListAddr));
 	ListAddr.sin_family = PF_INET;
 	ListAddr.sin_addr.s_addr = htons(INADDR_ANY);
-	ListAddr.sin_port = atoi(&args[1]);
+	ListAddr.sin_port = atoi(args[1]);
 
 	int sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_IP);
-	char recvBuffer[BUFSIZE] = "";
+	sockfd = sock_option_parser(sockfd);
 	ssize_t BytesRecv;
 	socklen_t CliLen = sizeof(ListAddr);
 
@@ -80,21 +95,25 @@ void	*server(void * argv){
 		perror("ERROR: fail on bind");
 		exit(0);
 	}
-	puts("listening");
-	listen(sockfd, 1);
+	if(listen(sockfd, 1)==-1){
+		perror("listen error");
+	}
+	printf("listening for incomming connections\n");
+	int newfd = accept(sockfd, (struct sockaddr *) &ListAddr, &CliLen);
+	printf("Connection accepted");
 	for(;;){
-		if(accept(sockfd, (struct sockaddr *) &ListAddr, &CliLen)>0){
-			puts("Connection accepted");
-			while(strncmp(recvBuffer,"quit\n",5)!=0);{
-				BytesRecv = recv(sockfd, recvBuffer, BUFSIZE, '\0');
-				if (recvBuffer >= 0 && recvBuffer != NULL){
-					printf(" %s: ", recvBuffer);
-				}
-			}
+		printf(".");
+		while (BytesRecv >= 0 && strncmp(recvBuffer,"quit",4)!=0){
+			pthread_mutex_lock(&mutex);
+			BytesRecv = recv(newfd, recvBuffer, sizeof(recvBuffer), 0);
+			printf("%s\n", recvBuffer);
+			pthread_mutex_unlock(&mutex);
+			bzero(recvBuffer,sizeof(recvBuffer));
 		}
 	}
+	printf("listener thread closed");
 	close(sockfd);
-	pthread_exit(0);
+	pthread_exit(NULL);
 }
 
 
@@ -119,11 +138,11 @@ int	main(int argc, char *argv[]) {
 	}
 	freeaddrinfo(&hints);
 */
-	puts("test");
+
 	//configure threads for client then server socket
-	result_code = pthread_create(&conn_t, &tattr, client, (void *) &argv);
+	result_code = pthread_create(&conn_t, &tattr, client, (void *) argv);
 	assert(0 == result_code);
-	result_code = pthread_create(&listen_t, &tattr, server, (void *) &argv);
+	result_code = pthread_create(&listen_t, &tattr, server, (void *) argv);
 	assert(0 == result_code);
 	pthread_attr_destroy(&tattr);
 	pthread_mutex_destroy(&mutex);
