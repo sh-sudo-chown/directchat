@@ -10,7 +10,7 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
-//	SYNTAX !!! - while testing AI_PASSIVE flags are currently in place of IP address at argv[1]
+//	SYNTAX !!!
 //	./chat port ip
 //   e.g.
 //	./chat 55 127.0.0.1
@@ -23,16 +23,17 @@ char sendBuffer[BUFSIZE], recvBuffer[BUFSIZE];
 int	sock_option_parser(int socket){
 	if(setsockopt(socket,SOL_SOCKET,SO_REUSEPORT,&(int){ 1 }, sizeof(int))<0)
 		perror("setsockopt(SO_REUSEPORT) failed");
+		//to connect to another local instance of ./chat on setsockopt SO_RESUSEPORT to 0(default)
 	if(setsockopt(socket,SOL_SOCKET,SO_RCVBUF, &(int){ 4096 }, sizeof(int))<0)
 		perror("setsockopt(SO_RCVBUF) failed");
 	if(setsockopt(socket,SOL_SOCKET,SO_RCVLOWAT,&(int){ 1 }, sizeof(int))<0)
 		perror("setsockopt(SO_RCVLOWAT) failed");
 	if(setsockopt(socket,SOL_SOCKET,SO_SNDBUF, &(int){ 4096 }, sizeof(int))<0)
 		perror("setsockopt(SO_SNDBUF) failed");
-	if(setsockopt(socket,SOL_TCP,TCP_MAXSEG, &(int){ 4096 }, sizeof(int))<0)
+/*	if(setsockopt(socket,SOL_TCP,TCP_MAXSEG, &(int){ 4095 }, sizeof(int))<0)
 		perror("setsockopt(MAX_SEG) failed");
 	if(setsockopt(socket,SOL_TCP,TCP_NODELAY, &(int){ 1 }, sizeof(int))<0)
-		perror("setsockopt(TCP_NODELAY) failed");
+		perror("setsockopt(TCP_NODELAY) failed");*/
 	return socket;
 }
 
@@ -54,13 +55,13 @@ void 	*client(void *arg){
 	ConnAddr.sin_port = atoi(args[1]);
 
 	//socket functions
-	CONN_loop: attempts++;
-	if(connect(sockfd, (struct sockaddr *) &ConnAddr, sizeof(ConnAddr))<0){
+	CONN_loop: attempts=attempts+1;
+	if(connect(sockfd, (struct sockaddr *) &ConnAddr, sizeof(ConnAddr))!=0){
 		printf("connection attempt %d failed, retrying\n", attempts);
 		sleep(3);
 		goto CONN_loop;
 	}
-	printf("connected");
+	printf("connection to %s established\n",args[2]);
 	while(strncmp(sendBuffer,"quit",4)!=0){
 		scanf("%s ", sendBuffer);
 		pthread_mutex_lock(&mutex);
@@ -68,7 +69,7 @@ void 	*client(void *arg){
 		pthread_mutex_unlock(&mutex);
 	}
 	close(sockfd);
-	printf("connect thread closed");
+	printf("connect thread closed\n");
 	pthread_exit(0);
 }
 
@@ -86,6 +87,7 @@ void	*server(void *arg){
 	ListAddr.sin_port = atoi(args[1]);
 
 	int sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_IP);
+	int newfd;
 	sockfd = sock_option_parser(sockfd);
 	ssize_t BytesRecv;
 	socklen_t CliLen = sizeof(ListAddr);
@@ -99,10 +101,9 @@ void	*server(void *arg){
 		perror("listen error");
 	}
 	printf("listening for incomming connections\n");
-	int newfd = accept(sockfd, (struct sockaddr *) &ListAddr, &CliLen);
-	printf("Connection accepted");
 	for(;;){
-		printf(".");
+		if(newfd = accept(sockfd, (struct sockaddr *) &ListAddr, &CliLen)>0)
+			printf("Connection accepted from %s",args[2]);
 		while (BytesRecv >= 0 && strncmp(recvBuffer,"quit",4)!=0){
 			pthread_mutex_lock(&mutex);
 			BytesRecv = recv(newfd, recvBuffer, sizeof(recvBuffer), 0);
@@ -111,7 +112,7 @@ void	*server(void *arg){
 			bzero(recvBuffer,sizeof(recvBuffer));
 		}
 	}
-	printf("listener thread closed");
+	printf("listener thread closed\n");
 	close(sockfd);
 	pthread_exit(NULL);
 }
@@ -148,5 +149,6 @@ int	main(int argc, char *argv[]) {
 	pthread_mutex_destroy(&mutex);
 	pthread_join(conn_t,NULL);
 	pthread_join(listen_t,NULL);
+	printf("program exiting");
 	return 0;
 }
